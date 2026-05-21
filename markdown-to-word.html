@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown → Word</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f3;
+    color: #1a1a1a;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 12px 20px;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 15px; font-weight: 500; }
+  header p  { font-size: 13px; color: #888; }
+
+  .container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1;
+    overflow: hidden;
+    margin: 12px;
+    gap: 10px;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #e5e5e3;
+    border-radius: 10px;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  .panel-header {
+    padding: 9px 14px;
+    border-bottom: 1px solid #e5e5e3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fafaf8;
+    flex-shrink: 0;
+  }
+
+  .panel-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+
+  .status { font-size: 11px; color: #bbb; margin-left: 8px; }
+
+  textarea {
+    flex: 1;
+    width: 100%;
+    padding: 14px;
+    font-size: 13px;
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    line-height: 1.6;
+    border: none;
+    outline: none;
+    resize: none;
+    background: #fff;
+    color: #1a1a1a;
+  }
+
+  .output-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: #1a1a1a;
+    cursor: text;
+    user-select: all;
+  }
+
+  .output-area h1 { font-size: 24px; font-weight: 600; margin: .8em 0 .4em; }
+  .output-area h2 { font-size: 20px; font-weight: 600; margin: .8em 0 .4em; }
+  .output-area h3 { font-size: 17px; font-weight: 600; margin: .7em 0 .3em; }
+  .output-area h4 { font-size: 15px; font-weight: 600; margin: .7em 0 .3em; }
+  .output-area h1:first-child, .output-area h2:first-child, .output-area h3:first-child { margin-top: 0; }
+  .output-area p  { margin: 0 0 .75em; }
+  .output-area ul, .output-area ol { margin: 0 0 .75em 1.5em; }
+  .output-area li { margin-bottom: .25em; }
+  .output-area strong { font-weight: 600; }
+  .output-area em { font-style: italic; }
+  .output-area del { text-decoration: line-through; }
+  .output-area code {
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    font-size: 12px; background: #f0f0ee; padding: 1px 5px; border-radius: 4px;
+  }
+  .output-area pre {
+    background: #f5f5f3; padding: 12px 14px; border-radius: 8px;
+    margin: 0 0 .75em; overflow-x: auto;
+    font-family: "SF Mono", "Fira Code", Consolas, monospace;
+    font-size: 12px; line-height: 1.5; border: 1px solid #e5e5e3;
+  }
+  .output-area pre code { background: none; padding: 0; }
+  .output-area blockquote {
+    border-left: 3px solid #d0d0ce; padding-left: 14px;
+    color: #666; margin: 0 0 .75em;
+  }
+  .output-area hr { border: none; border-top: 1px solid #e5e5e3; margin: 1.2em 0; }
+  .output-area table { border-collapse: collapse; width: 100%; margin: 0 0 .75em; font-size: 13px; }
+  .output-area th, .output-area td { border: 1px solid #d5d5d3; padding: 6px 10px; text-align: left; }
+  .output-area th { font-weight: 600; background: #f5f5f3; }
+  .output-area a { color: #0066cc; }
+  .output-area .placeholder { color: #bbb; font-size: 14px; font-style: italic; user-select: none; }
+
+  /* Mermaid diagram blocks */
+  .mermaid-wrap {
+    margin: 0 0 .75em;
+    border: 1px solid #e5e5e3;
+    border-radius: 8px;
+    overflow: hidden;
+    user-select: none;
+  }
+  .mermaid-toolbar {
+    padding: 6px 10px;
+    background: #fafaf8;
+    border-bottom: 1px solid #e5e5e3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mermaid-label { font-size: 11px; color: #aaa; font-family: "SF Mono", Consolas, monospace; }
+  .mermaid-body { padding: 16px; background: #fff; text-align: center; overflow-x: auto; }
+  .mermaid-body svg { max-width: 100%; height: auto; }
+  .mermaid-err {
+    padding: 10px 12px; font-size: 12px;
+    font-family: "SF Mono", Consolas, monospace;
+    color: #c0392b; background: #fdf0ee; border-radius: 6px;
+  }
+
+  /* Buttons */
+  .btn {
+    font-size: 12px; padding: 4px 10px; border-radius: 6px;
+    border: 1px solid #d5d5d3; background: transparent; color: #666;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+    font-family: inherit; transition: background .12s, color .12s;
+  }
+  .btn:hover { background: #f0f0ee; color: #1a1a1a; }
+  .btn.copied { color: #2d7d46; border-color: #2d7d46; }
+  .btn.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .btn.primary:hover { background: #333; }
+  .btn-row { display: flex; gap: 6px; align-items: center; }
+  .clear-btn {
+    font-size: 11px; padding: 3px 8px; border-radius: 6px;
+    border: 1px solid #e5e5e3; background: transparent; color: #aaa;
+    cursor: pointer; font-family: inherit;
+  }
+  .clear-btn:hover { color: #666; }
+
+  /* Dark mode */
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #e5e5e3; }
+    header, .panel { background: #242424; border-color: #333; }
+    .panel-header, .mermaid-toolbar { background: #1e1e1e; border-color: #333; }
+    header h1 { color: #e5e5e3; }
+    textarea { background: #242424; color: #e5e5e3; }
+    .output-area { color: #e5e5e3; }
+    .output-area code { background: #2e2e2e; }
+    .output-area pre { background: #2a2a2a; border-color: #333; }
+    .output-area th { background: #2a2a2a; }
+    .output-area th, .output-area td { border-color: #3a3a3a; }
+    .output-area hr { border-color: #333; }
+    .mermaid-wrap { border-color: #333; }
+    .mermaid-body { background: #242424; }
+    .btn { border-color: #444; color: #aaa; }
+    .btn:hover { background: #2e2e2e; color: #e5e5e3; }
+    .btn.primary { background: #e5e5e3; color: #1a1a1a; border-color: #e5e5e3; }
+    .btn.primary:hover { background: #fff; }
+    .clear-btn { border-color: #333; color: #555; }
+    .clear-btn:hover { color: #aaa; }
+  }
+
+  @media (max-width: 640px) {
+    .container { grid-template-columns: 1fr; margin: 8px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Markdown → Word</h1>
+    <p>Paste markdown on the left · copy formatted output on the right</p>
+  </div>
+</header>
+
+<div class="container">
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-label">
+        Markdown input
+        <span class="status" id="status"></span>
+      </span>
+      <button class="clear-btn" id="clearBtn">Clear</button>
+    </div>
+    <textarea id="mdInput" placeholder="Paste your markdown here…
+
+Supports headings, bold, italic, lists, tables,
+blockquotes, code blocks, links, and Mermaid diagrams:
+
+&#96;&#96;&#96;mermaid
+graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Done]
+    B -->|No| D[Try again]
+    D --> A
+&#96;&#96;&#96;
+"></textarea>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-label">Word-ready output</span>
+      <div class="btn-row">
+        <button class="btn primary" id="copyBtn">&#128203; Copy all</button>
+      </div>
+    </div>
+    <div class="output-area" id="output">
+      <p class="placeholder">Formatted content appears here.<br>
+      Text copies with formatting via "Copy all".<br>
+      Mermaid diagrams get their own "Copy image" button.</p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+
+const input   = document.getElementById('mdInput');
+const output  = document.getElementById('output');
+const copyBtn = document.getElementById('copyBtn');
+const clearBtn= document.getElementById('clearBtn');
+const status  = document.getElementById('status');
+
+function esc(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmt(t) {
+  return esc(t)
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,         '<em>$1</em>')
+    .replace(/___(.+?)___/g,       '<strong><em>$1</em></strong>')
+    .replace(/__(.+?)__/g,         '<strong>$1</strong>')
+    .replace(/_(.+?)_/g,           '<em>$1</em>')
+    .replace(/~~(.+?)~~/g,         '<del>$1</del>')
+    .replace(/`([^`]+)`/g,         '<code>$1</code>')
+    .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2">$1</a>');
+}
+
+let mermaidBlocks = [];
+
+function parse(md) {
+  if (!md.trim()) return '';
+  const lines = md.split('\n');
+  const parts  = [];
+  let i = 0, n = lines.length;
+  mermaidBlocks = [];
+
+  while (i < n) {
+    const line = lines[i];
+
+    // Fenced code / mermaid block
+    if (line.startsWith('```')) {
+      const lang = line.slice(3).trim().toLowerCase();
+      let code = ''; i++;
+      while (i < n && !lines[i].startsWith('```')) { code += lines[i] + '\n'; i++; }
+      i++;
+      if (lang === 'mermaid') {
+        const idx = mermaidBlocks.length;
+        mermaidBlocks.push(code.trim());
+        parts.push(
+          '<div class="mermaid-wrap" data-mermaid="' + idx + '">' +
+            '<div class="mermaid-toolbar">' +
+              '<span class="mermaid-label">&#11835; mermaid diagram</span>' +
+              '<button class="btn" onclick="copyDiagram(' + idx + ')">&#128247; Copy image</button>' +
+            '</div>' +
+            '<div class="mermaid-body" id="mermaid-body-' + idx + '">' +
+              '<span style="font-size:12px;color:#aaa">Rendering&hellip;</span>' +
+            '</div>' +
+          '</div>'
+        );
+      } else {
+        parts.push('<pre><code>' + esc(code.trimEnd()) + '</code></pre>');
+      }
+      continue;
+    }
+
+    // Heading
+    const hm = line.match(/^(#{1,6}) (.*)/);
+    if (hm) { parts.push('<h' + hm[1].length + '>' + fmt(hm[2]) + '</h' + hm[1].length + '>'); i++; continue; }
+
+    // HR
+    if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(line)) { parts.push('<hr>'); i++; continue; }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      let bq = '';
+      while (i < n && lines[i].startsWith('> ')) { bq += lines[i].slice(2) + ' '; i++; }
+      parts.push('<blockquote><p>' + fmt(bq.trim()) + '</p></blockquote>');
+      continue;
+    }
+
+    // Table
+    if (/^\|.+\|/.test(line)) {
+      const rows = [];
+      while (i < n && /^\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+      const cells = r => r.split('|').slice(1, -1).map(c => c.trim());
+      const head = cells(rows[0]).map(c => '<th>' + fmt(c) + '</th>').join('');
+      const body = rows.slice(2).map(r =>
+        '<tr>' + cells(r).map(c => '<td>' + fmt(c) + '</td>').join('') + '</tr>'
+      ).join('');
+      parts.push('<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>');
+      continue;
+    }
+
+    // Unordered list
+    if (/^[*\-+] /.test(line)) {
+      let items = '';
+      while (i < n && /^[*\-+] /.test(lines[i])) {
+        items += '<li>' + fmt(lines[i].replace(/^[*\-+] /, '')) + '</li>'; i++;
+      }
+      parts.push('<ul>' + items + '</ul>');
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\. /.test(line)) {
+      let items = '';
+      while (i < n && /^\d+\. /.test(lines[i])) {
+        items += '<li>' + fmt(lines[i].replace(/^\d+\. /, '')) + '</li>'; i++;
+      }
+      parts.push('<ol>' + items + '</ol>');
+      continue;
+    }
+
+    // Blank line
+    if (!line.trim()) { i++; continue; }
+
+    // Paragraph
+    let para = '';
+    while (i < n) {
+      const l = lines[i];
+      if (!l.trim() || l.startsWith('#') || l.startsWith('```') || l.startsWith('> ') ||
+          /^[*\-+] /.test(l) || /^\d+\. /.test(l) || /^\|/.test(l) ||
+          /^(\*{3,}|-{3,}|_{3,})\s*$/.test(l)) break;
+      para += l + ' '; i++;
+    }
+    if (para.trim()) parts.push('<p>' + fmt(para.trim()) + '</p>');
+  }
+
+  return parts.join('');
+}
+
+async function renderMermaidBlocks() {
+  for (let idx = 0; idx < mermaidBlocks.length; idx++) {
+    const body = document.getElementById('mermaid-body-' + idx);
+    if (!body) continue;
+    try {
+      const id = 'mmd-' + idx + '-' + Date.now();
+      const { svg } = await mermaid.render(id, mermaidBlocks[idx]);
+      body.innerHTML = svg;
+    } catch (e) {
+      body.innerHTML = '<div class="mermaid-err">Diagram error: ' + esc(String(e.message || e)) + '</div>';
+    }
+  }
+}
+
+// Debounced render
+let rafId = null, debounceTimer = null, lastValue = '';
+
+function scheduleRender() {
+  const val = input.value;
+  if (val === lastValue) return;
+  lastValue = val;
+  status.textContent = 'parsing…';
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => {
+      const html = parse(val);
+      const frag = document.createRange().createContextualFragment(
+        html ||
+        '<p class="placeholder">Formatted content appears here.<br>' +
+        'Text copies with formatting via "Copy all".<br>' +
+        'Mermaid diagrams get their own "Copy image" button.</p>'
+      );
+      output.replaceChildren(frag);
+      status.textContent = '';
+      rafId = null;
+      if (mermaidBlocks.length) renderMermaidBlocks();
+    });
+  }, 120);
+}
+
+input.addEventListener('input', scheduleRender);
+input.addEventListener('paste', () => { status.textContent = 'pasting…'; setTimeout(scheduleRender, 0); });
+
+// Copy diagram as PNG image
+async function copyDiagram(idx) {
+  const body = document.getElementById('mermaid-body-' + idx);
+  if (!body) return;
+  const svg = body.querySelector('svg');
+  if (!svg) return;
+  const btn = body.closest('.mermaid-wrap').querySelector('button');
+
+  try {
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const scale   = 2;
+    const w = (svg.viewBox.baseVal.width  || svg.getBoundingClientRect().width  || 600) * scale;
+    const h = (svg.viewBox.baseVal.height || svg.getBoundingClientRect().height || 400) * scale;
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+
+    const blob = new Blob([svgData], { type: 'image/svg+xml' });
+    const url  = URL.createObjectURL(blob);
+    const img  = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+
+    canvas.toBlob(async pngBlob => {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+        btn.classList.add('copied');
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📷 Copy image'; }, 2000);
+      } catch {
+        btn.textContent = '✗ Failed';
+        setTimeout(() => { btn.textContent = '📷 Copy image'; }, 2000);
+      }
+    }, 'image/png');
+  } catch {
+    btn.textContent = '✗ Error';
+    setTimeout(() => { btn.textContent = '📷 Copy image'; }, 2000);
+  }
+}
+
+// Copy all as rich text
+copyBtn.addEventListener('click', () => {
+  const sel   = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(output);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  const htmlBlob = new Blob([output.innerHTML], { type: 'text/html' });
+  const textBlob = new Blob([output.innerText], { type: 'text/plain' });
+
+  navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })])
+    .catch(() => document.execCommand('copy'))
+    .finally(() => {
+      sel.removeAllRanges();
+      copyBtn.classList.add('copied');
+      copyBtn.textContent = '✓ Copied!';
+      setTimeout(() => { copyBtn.classList.remove('copied'); copyBtn.textContent = '📋 Copy all'; }, 2000);
+    });
+});
+
+clearBtn.addEventListener('click', () => {
+  input.value = ''; lastValue = ''; mermaidBlocks = [];
+  output.innerHTML =
+    '<p class="placeholder">Formatted content appears here.<br>' +
+    'Text copies with formatting via "Copy all".<br>' +
+    'Mermaid diagrams get their own "Copy image" button.</p>';
+  status.textContent = '';
+  input.focus();
+});
+</script>
+</body>
+</html>
