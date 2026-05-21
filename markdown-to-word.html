@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Markdown → Word</title>
+<title>Markdown to Word</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,7 +26,7 @@
     flex-shrink: 0;
   }
   header h1 { font-size: 15px; font-weight: 500; }
-  header p  { font-size: 13px; color: #888; }
+  header p  { font-size: 13px; color: #777; }
 
   .container {
     display: grid;
@@ -125,7 +125,12 @@
   .output-area a { color: #0066cc; }
   .output-area .placeholder { color: #bbb; font-size: 14px; font-style: italic; user-select: none; }
 
-  /* Mermaid diagram blocks */
+  .safety-note {
+    font-size: 11px;
+    color: #888;
+    margin-left: 8px;
+  }
+
   .mermaid-wrap {
     margin: 0 0 .75em;
     border: 1px solid #e5e5e3;
@@ -140,8 +145,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 8px;
   }
   .mermaid-label { font-size: 11px; color: #aaa; font-family: "SF Mono", Consolas, monospace; }
+  .mermaid-actions { display: flex; gap: 6px; }
   .mermaid-body { padding: 16px; background: #fff; text-align: center; overflow-x: auto; }
   .mermaid-body svg { max-width: 100%; height: auto; }
   .mermaid-err {
@@ -150,7 +157,6 @@
     color: #c0392b; background: #fdf0ee; border-radius: 6px;
   }
 
-  /* Buttons */
   .btn {
     font-size: 12px; padding: 4px 10px; border-radius: 6px;
     border: 1px solid #d5d5d3; background: transparent; color: #666;
@@ -161,7 +167,7 @@
   .btn.copied { color: #2d7d46; border-color: #2d7d46; }
   .btn.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
   .btn.primary:hover { background: #333; }
-  .btn-row { display: flex; gap: 6px; align-items: center; }
+  .btn-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .clear-btn {
     font-size: 11px; padding: 3px 8px; border-radius: 6px;
     border: 1px solid #e5e5e3; background: transparent; color: #aaa;
@@ -169,7 +175,6 @@
   }
   .clear-btn:hover { color: #666; }
 
-  /* Dark mode */
   @media (prefers-color-scheme: dark) {
     body { background: #1a1a1a; color: #e5e5e3; }
     header, .panel { background: #242424; border-color: #333; }
@@ -190,6 +195,7 @@
     .btn.primary:hover { background: #fff; }
     .clear-btn { border-color: #333; color: #555; }
     .clear-btn:hover { color: #aaa; }
+    .safety-note { color: #aaa; }
   }
 
   @media (max-width: 640px) {
@@ -201,8 +207,10 @@
 
 <header>
   <div>
-    <h1>Markdown → Word</h1>
-    <p>Paste markdown on the left · copy formatted output on the right</p>
+    <h1>Markdown to Word</h1>
+    <p>Paste markdown on the left, copy formatted output on the right.
+      <span class="safety-note">Local-first: nothing is uploaded.</span>
+    </p>
   </div>
 </header>
 
@@ -215,259 +223,328 @@
       </span>
       <button class="clear-btn" id="clearBtn">Clear</button>
     </div>
-    <textarea id="mdInput" placeholder="Paste your markdown here…
-
-Supports headings, bold, italic, lists, tables,
-blockquotes, code blocks, links, and Mermaid diagrams:
-
-&#96;&#96;&#96;mermaid
-graph TD
-    A[Start] --> B{Decision}
-    B -->|Yes| C[Done]
-    B -->|No| D[Try again]
-    D --> A
-&#96;&#96;&#96;
-"></textarea>
+    <textarea id="mdInput" placeholder="Paste your markdown here..."></textarea>
   </div>
 
   <div class="panel">
     <div class="panel-header">
       <span class="panel-label">Word-ready output</span>
       <div class="btn-row">
-        <button class="btn primary" id="copyBtn">&#128203; Copy all</button>
+        <button class="btn" id="copyDiagramsBtn">Copy diagrams</button>
+        <button class="btn" id="downloadDocxBtn">Download .docx</button>
+        <button class="btn primary" id="copyBtn">Copy all</button>
       </div>
     </div>
     <div class="output-area" id="output">
-      <p class="placeholder">Formatted content appears here.<br>
-      Text copies with formatting via "Copy all".<br>
-      Mermaid diagrams get their own "Copy image" button.</p>
+      <p class="placeholder">Formatted content appears here.</p>
     </div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
 <script>
 mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
 
-const input   = document.getElementById('mdInput');
-const output  = document.getElementById('output');
+const input = document.getElementById('mdInput');
+const output = document.getElementById('output');
 const copyBtn = document.getElementById('copyBtn');
-const clearBtn= document.getElementById('clearBtn');
-const status  = document.getElementById('status');
+const clearBtn = document.getElementById('clearBtn');
+const copyDiagramsBtn = document.getElementById('copyDiagramsBtn');
+const downloadDocxBtn = document.getElementById('downloadDocxBtn');
+const status = document.getElementById('status');
 
-function esc(t) {
-  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function fmt(t) {
-  return esc(t)
-    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g,         '<em>$1</em>')
-    .replace(/___(.+?)___/g,       '<strong><em>$1</em></strong>')
-    .replace(/__(.+?)__/g,         '<strong>$1</strong>')
-    .replace(/_(.+?)_/g,           '<em>$1</em>')
-    .replace(/~~(.+?)~~/g,         '<del>$1</del>')
-    .replace(/`([^`]+)`/g,         '<code>$1</code>')
-    .replace(/\[(.+?)\]\((.+?)\)/g,'<a href="$2">$1</a>');
-}
-
+const PLACEHOLDER = '<p class="placeholder">Formatted content appears here.</p>';
 let mermaidBlocks = [];
+let parsedHtml = '';
 
-function parse(md) {
-  if (!md.trim()) return '';
-  const lines = md.split('\n');
-  const parts  = [];
-  let i = 0, n = lines.length;
-  mermaidBlocks = [];
+const workerCode = `
+  self.importScripts('https://cdn.jsdelivr.net/npm/marked/marked.min.js');
 
-  while (i < n) {
-    const line = lines[i];
-
-    // Fenced code / mermaid block
-    if (line.startsWith('```')) {
-      const lang = line.slice(3).trim().toLowerCase();
-      let code = ''; i++;
-      while (i < n && !lines[i].startsWith('```')) { code += lines[i] + '\n'; i++; }
-      i++;
-      if (lang === 'mermaid') {
-        const idx = mermaidBlocks.length;
-        mermaidBlocks.push(code.trim());
-        parts.push(
-          '<div class="mermaid-wrap" data-mermaid="' + idx + '">' +
-            '<div class="mermaid-toolbar">' +
-              '<span class="mermaid-label">&#11835; mermaid diagram</span>' +
-              '<button class="btn" onclick="copyDiagram(' + idx + ')">&#128247; Copy image</button>' +
-            '</div>' +
-            '<div class="mermaid-body" id="mermaid-body-' + idx + '">' +
-              '<span style="font-size:12px;color:#aaa">Rendering&hellip;</span>' +
-            '</div>' +
-          '</div>'
-        );
-      } else {
-        parts.push('<pre><code>' + esc(code.trimEnd()) + '</code></pre>');
-      }
-      continue;
-    }
-
-    // Heading
-    const hm = line.match(/^(#{1,6}) (.*)/);
-    if (hm) { parts.push('<h' + hm[1].length + '>' + fmt(hm[2]) + '</h' + hm[1].length + '>'); i++; continue; }
-
-    // HR
-    if (/^(\*{3,}|-{3,}|_{3,})\s*$/.test(line)) { parts.push('<hr>'); i++; continue; }
-
-    // Blockquote
-    if (line.startsWith('> ')) {
-      let bq = '';
-      while (i < n && lines[i].startsWith('> ')) { bq += lines[i].slice(2) + ' '; i++; }
-      parts.push('<blockquote><p>' + fmt(bq.trim()) + '</p></blockquote>');
-      continue;
-    }
-
-    // Table
-    if (/^\|.+\|/.test(line)) {
-      const rows = [];
-      while (i < n && /^\|/.test(lines[i])) { rows.push(lines[i]); i++; }
-      const cells = r => r.split('|').slice(1, -1).map(c => c.trim());
-      const head = cells(rows[0]).map(c => '<th>' + fmt(c) + '</th>').join('');
-      const body = rows.slice(2).map(r =>
-        '<tr>' + cells(r).map(c => '<td>' + fmt(c) + '</td>').join('') + '</tr>'
-      ).join('');
-      parts.push('<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>');
-      continue;
-    }
-
-    // Unordered list
-    if (/^[*\-+] /.test(line)) {
-      let items = '';
-      while (i < n && /^[*\-+] /.test(lines[i])) {
-        items += '<li>' + fmt(lines[i].replace(/^[*\-+] /, '')) + '</li>'; i++;
-      }
-      parts.push('<ul>' + items + '</ul>');
-      continue;
-    }
-
-    // Ordered list
-    if (/^\d+\. /.test(line)) {
-      let items = '';
-      while (i < n && /^\d+\. /.test(lines[i])) {
-        items += '<li>' + fmt(lines[i].replace(/^\d+\. /, '')) + '</li>'; i++;
-      }
-      parts.push('<ol>' + items + '</ol>');
-      continue;
-    }
-
-    // Blank line
-    if (!line.trim()) { i++; continue; }
-
-    // Paragraph
-    let para = '';
-    while (i < n) {
-      const l = lines[i];
-      if (!l.trim() || l.startsWith('#') || l.startsWith('```') || l.startsWith('> ') ||
-          /^[*\-+] /.test(l) || /^\d+\. /.test(l) || /^\|/.test(l) ||
-          /^(\*{3,}|-{3,}|_{3,})\s*$/.test(l)) break;
-      para += l + ' '; i++;
-    }
-    if (para.trim()) parts.push('<p>' + fmt(para.trim()) + '</p>');
+  function escAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return parts.join('');
+  const renderer = new self.marked.Renderer();
+  renderer.code = (codeOrToken, infostring) => {
+    const isToken = codeOrToken && typeof codeOrToken === 'object';
+    const code = isToken ? String(codeOrToken.text || '') : String(codeOrToken || '');
+    const langRaw = isToken ? codeOrToken.lang : infostring;
+    const lang = String(langRaw || '').trim().toLowerCase();
+    if (lang === 'mermaid') {
+      const encoded = encodeURIComponent(code.trim());
+      return '<div class="mermaid-wrap" data-mermaid-src="' + escAttr(encoded) + '">' +
+        '<div class="mermaid-toolbar">' +
+          '<span class="mermaid-label">mermaid diagram</span>' +
+          '<div class="mermaid-actions">' +
+            '<button class="btn" data-action="copy-diagram">Copy PNG</button>' +
+            '<button class="btn" data-action="export-svg">Export SVG</button>' +
+            '<button class="btn" data-action="retry-diagram">Retry</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="mermaid-body"><span style="font-size:12px;color:#aaa">Rendering...</span></div>' +
+      '</div>';
+    }
+    const escaped = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return '<pre><code>' + escaped + '</code></pre>';
+  };
+
+  self.marked.setOptions({ gfm: true, breaks: false, renderer });
+
+  self.onmessage = (event) => {
+    const md = event.data || '';
+    if (!md.trim()) {
+      self.postMessage({ html: '' });
+      return;
+    }
+
+    try {
+      const html = self.marked.parse(md);
+      self.postMessage({ html });
+    } catch (err) {
+      self.postMessage({ html: '<p>Parse error: ' + String(err.message || err) + '</p>' });
+    }
+  };
+`;
+const parseWorker = new Worker(URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' })));
+
+function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
+  });
 }
+
+parseWorker.onmessage = async (event) => {
+  const html = sanitizeHtml(event.data.html || '');
+  parsedHtml = html;
+
+  if (!html.trim()) {
+    output.innerHTML = PLACEHOLDER;
+    status.textContent = '';
+    return;
+  }
+
+  const frag = document.createRange().createContextualFragment(html);
+  output.replaceChildren(frag);
+  status.textContent = '';
+  await renderMermaidBlocks();
+};
 
 async function renderMermaidBlocks() {
-  for (let idx = 0; idx < mermaidBlocks.length; idx++) {
-    const body = document.getElementById('mermaid-body-' + idx);
-    if (!body) continue;
+  const wraps = output.querySelectorAll('.mermaid-wrap');
+  mermaidBlocks = [];
+
+  for (let i = 0; i < wraps.length; i++) {
+    const wrap = wraps[i];
+    const body = wrap.querySelector('.mermaid-body');
+    let src = wrap.getAttribute('data-mermaid-src') || '';
+    try { src = decodeURIComponent(src); } catch {}
+    mermaidBlocks.push({ src, wrap });
+
     try {
-      const id = 'mmd-' + idx + '-' + Date.now();
-      const { svg } = await mermaid.render(id, mermaidBlocks[idx]);
+      const id = 'mmd-' + i + '-' + Date.now();
+      const { svg } = await mermaid.render(id, src);
       body.innerHTML = svg;
+      wrap.dataset.renderState = 'ok';
     } catch (e) {
-      body.innerHTML = '<div class="mermaid-err">Diagram error: ' + esc(String(e.message || e)) + '</div>';
+      body.innerHTML = '<div class="mermaid-err">Diagram error: ' + String(e.message || e) + '</div>';
+      wrap.dataset.renderState = 'error';
     }
   }
 }
 
-// Debounced render
-let rafId = null, debounceTimer = null, lastValue = '';
+function toPngBlob(svg) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const scale = 2;
+      const w = (svg.viewBox.baseVal.width || svg.getBoundingClientRect().width || 600) * scale;
+      const h = (svg.viewBox.baseVal.height || svg.getBoundingClientRect().height || 400) * scale;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(w));
+      canvas.height = Math.max(1, Math.round(h));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((pngBlob) => {
+          if (!pngBlob) return reject(new Error('PNG conversion failed'));
+          resolve(pngBlob);
+        }, 'image/png');
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Image load failed'));
+      };
+      img.src = url;
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyDiagram(wrap, btn) {
+  const svg = wrap.querySelector('svg');
+  if (!svg) return;
+
+  try {
+    const pngBlob = await toPngBlob(svg);
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      btn.classList.add('copied');
+      btn.textContent = 'Copied';
+      setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'Copy PNG'; }, 1600);
+      return;
+    }
+
+    downloadBlob(pngBlob, `diagram-${Date.now()}.png`);
+    btn.classList.add('copied');
+    btn.textContent = 'Downloaded PNG';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'Copy PNG'; }, 1600);
+  } catch {
+    try {
+      const pngBlob = await toPngBlob(svg);
+      downloadBlob(pngBlob, `diagram-${Date.now()}.png`);
+      btn.textContent = 'Downloaded PNG';
+    } catch {
+      btn.textContent = 'Failed';
+    }
+    setTimeout(() => { btn.textContent = 'Copy PNG'; }, 1600);
+  }
+}
+
+function exportSvg(wrap, btn) {
+  const svg = wrap.querySelector('svg');
+  if (!svg) return;
+
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `diagram-${Date.now()}.svg`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  btn.classList.add('copied');
+  btn.textContent = 'Exported';
+  setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'Export SVG'; }, 1600);
+}
+
+async function retryDiagram(wrap, btn) {
+  let src = wrap.getAttribute('data-mermaid-src') || '';
+  try { src = decodeURIComponent(src); } catch {}
+  const body = wrap.querySelector('.mermaid-body');
+  body.innerHTML = '<span style="font-size:12px;color:#aaa">Retrying...</span>';
+
+  try {
+    const id = 'retry-' + Date.now();
+    const { svg } = await mermaid.render(id, src);
+    body.innerHTML = svg;
+    wrap.dataset.renderState = 'ok';
+    btn.classList.add('copied');
+    btn.textContent = 'Done';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'Retry'; }, 1600);
+  } catch (e) {
+    body.innerHTML = '<div class="mermaid-err">Diagram error: ' + String(e.message || e) + '</div>';
+    wrap.dataset.renderState = 'error';
+  }
+}
+
+output.addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+  const wrap = btn.closest('.mermaid-wrap');
+  if (!wrap) return;
+
+  const action = btn.getAttribute('data-action');
+  if (action === 'copy-diagram') await copyDiagram(wrap, btn);
+  if (action === 'export-svg') exportSvg(wrap, btn);
+  if (action === 'retry-diagram') await retryDiagram(wrap, btn);
+});
+
+let rafId = null;
+let debounceTimer = null;
+let lastValue = '';
 
 function scheduleRender() {
   const val = input.value;
   if (val === lastValue) return;
   lastValue = val;
-  status.textContent = 'parsing…';
+  status.textContent = 'parsing...';
+
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
-      const html = parse(val);
-      const frag = document.createRange().createContextualFragment(
-        html ||
-        '<p class="placeholder">Formatted content appears here.<br>' +
-        'Text copies with formatting via "Copy all".<br>' +
-        'Mermaid diagrams get their own "Copy image" button.</p>'
-      );
-      output.replaceChildren(frag);
-      status.textContent = '';
+      parseWorker.postMessage(val);
       rafId = null;
-      if (mermaidBlocks.length) renderMermaidBlocks();
     });
   }, 120);
 }
 
 input.addEventListener('input', scheduleRender);
-input.addEventListener('paste', () => { status.textContent = 'pasting…'; setTimeout(scheduleRender, 0); });
+input.addEventListener('paste', () => { status.textContent = 'pasting...'; setTimeout(scheduleRender, 0); });
 
-// Copy diagram as PNG image
-async function copyDiagram(idx) {
-  const body = document.getElementById('mermaid-body-' + idx);
-  if (!body) return;
-  const svg = body.querySelector('svg');
-  if (!svg) return;
-  const btn = body.closest('.mermaid-wrap').querySelector('button');
+copyDiagramsBtn.addEventListener('click', async () => {
+  const wraps = [...output.querySelectorAll('.mermaid-wrap')];
+  if (!wraps.length) return;
 
-  try {
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const scale   = 2;
-    const w = (svg.viewBox.baseVal.width  || svg.getBoundingClientRect().width  || 600) * scale;
-    const h = (svg.viewBox.baseVal.height || svg.getBoundingClientRect().height || 400) * scale;
-
-    const canvas = document.createElement('canvas');
-    canvas.width  = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, w, h);
-
-    const blob = new Blob([svgData], { type: 'image/svg+xml' });
-    const url  = URL.createObjectURL(blob);
-    const img  = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-    ctx.drawImage(img, 0, 0, w, h);
-    URL.revokeObjectURL(url);
-
-    canvas.toBlob(async pngBlob => {
-      try {
+  const canClipboardImage = !!(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write);
+  let copied = 0;
+  let downloaded = 0;
+  for (const wrap of wraps) {
+    const svg = wrap.querySelector('svg');
+    if (!svg) continue;
+    try {
+      const pngBlob = await toPngBlob(svg);
+      if (canClipboardImage) {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
-        btn.classList.add('copied');
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📷 Copy image'; }, 2000);
-      } catch {
-        btn.textContent = '✗ Failed';
-        setTimeout(() => { btn.textContent = '📷 Copy image'; }, 2000);
+        copied += 1;
+      } else {
+        downloadBlob(pngBlob, `diagram-${Date.now()}-${downloaded + 1}.png`);
+        downloaded += 1;
       }
-    }, 'image/png');
-  } catch {
-    btn.textContent = '✗ Error';
-    setTimeout(() => { btn.textContent = '📷 Copy image'; }, 2000);
+    } catch {}
   }
-}
 
-// Copy all as rich text
+  copyDiagramsBtn.classList.add('copied');
+  copyDiagramsBtn.textContent = copied
+    ? `Copied ${copied}`
+    : downloaded
+      ? `Downloaded ${downloaded}`
+      : 'No diagrams';
+  setTimeout(() => {
+    copyDiagramsBtn.classList.remove('copied');
+    copyDiagramsBtn.textContent = 'Copy diagrams';
+  }, 1800);
+});
+
 copyBtn.addEventListener('click', () => {
-  const sel   = window.getSelection();
+  const sel = window.getSelection();
   const range = document.createRange();
   range.selectNodeContents(output);
   sel.removeAllRanges();
@@ -481,17 +558,127 @@ copyBtn.addEventListener('click', () => {
     .finally(() => {
       sel.removeAllRanges();
       copyBtn.classList.add('copied');
-      copyBtn.textContent = '✓ Copied!';
-      setTimeout(() => { copyBtn.classList.remove('copied'); copyBtn.textContent = '📋 Copy all'; }, 2000);
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => { copyBtn.classList.remove('copied'); copyBtn.textContent = 'Copy all'; }, 1600);
     });
 });
 
+function htmlNodeToDocxParagraphs(root) {
+  const { Paragraph, TextRun, HeadingLevel } = docx;
+  const paragraphs = [];
+
+  function inlineRuns(node, marks = {}) {
+    const runs = [];
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || '';
+      if (!text) return runs;
+      runs.push(new TextRun({ text, bold: !!marks.bold, italics: !!marks.italics, strike: !!marks.strike }));
+      return runs;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return runs;
+
+    const nextMarks = { ...marks };
+    if (node.tagName === 'STRONG' || node.tagName === 'B') nextMarks.bold = true;
+    if (node.tagName === 'EM' || node.tagName === 'I') nextMarks.italics = true;
+    if (node.tagName === 'DEL' || node.tagName === 'S') nextMarks.strike = true;
+
+    if (node.tagName === 'CODE') {
+      const text = node.textContent || '';
+      runs.push(new TextRun({ text, bold: !!nextMarks.bold, italics: !!nextMarks.italics, strike: !!nextMarks.strike, font: 'Consolas' }));
+      return runs;
+    }
+
+    for (const child of node.childNodes) runs.push(...inlineRuns(child, nextMarks));
+    return runs;
+  }
+
+  for (const child of root.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE && !child.textContent.trim()) continue;
+    if (child.nodeType !== Node.ELEMENT_NODE) continue;
+
+    const tag = child.tagName;
+    if (tag === 'H1' || tag === 'H2' || tag === 'H3') {
+      const level = tag === 'H1' ? HeadingLevel.HEADING_1 : tag === 'H2' ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3;
+      paragraphs.push(new Paragraph({ heading: level, children: inlineRuns(child) }));
+      continue;
+    }
+
+    if (tag === 'UL' || tag === 'OL') {
+      const items = child.querySelectorAll(':scope > li');
+      items.forEach((li) => {
+        paragraphs.push(new Paragraph({
+          children: inlineRuns(li),
+          bullet: tag === 'UL' ? { level: 0 } : undefined,
+          numbering: tag === 'OL' ? { reference: 'ordered-list', level: 0 } : undefined,
+        }));
+      });
+      continue;
+    }
+
+    if (tag === 'PRE') {
+      paragraphs.push(new Paragraph({ children: [new TextRun({ text: child.innerText || '', font: 'Consolas' })] }));
+      continue;
+    }
+
+    if (tag === 'BLOCKQUOTE') {
+      paragraphs.push(new Paragraph({ children: inlineRuns(child) }));
+      continue;
+    }
+
+    if (tag === 'TABLE') {
+      const rows = child.querySelectorAll('tr');
+      rows.forEach((tr) => {
+        const cells = [...tr.querySelectorAll('th,td')].map((c) => c.textContent.trim()).join(' | ');
+        paragraphs.push(new Paragraph({ children: [new TextRun({ text: cells })] }));
+      });
+      continue;
+    }
+
+    if (tag === 'DIV' && child.classList.contains('mermaid-wrap')) {
+      paragraphs.push(new Paragraph({ children: [new TextRun({ text: '[Mermaid diagram] ' + ((child.getAttribute('data-mermaid-src') || '').slice(0, 70)) })] }));
+      continue;
+    }
+
+    paragraphs.push(new Paragraph({ children: inlineRuns(child) }));
+  }
+
+  return paragraphs;
+}
+
+downloadDocxBtn.addEventListener('click', async () => {
+  if (!output.textContent.trim()) return;
+
+  const { Document, Packer } = docx;
+  const doc = new Document({
+    numbering: {
+      config: [{
+        reference: 'ordered-list',
+        levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: docx.AlignmentType.START }]
+      }]
+    },
+    sections: [{ children: htmlNodeToDocxParagraphs(output) }]
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'markdown-export.docx';
+  link.click();
+  URL.revokeObjectURL(link.href);
+
+  downloadDocxBtn.classList.add('copied');
+  downloadDocxBtn.textContent = 'Downloaded';
+  setTimeout(() => { downloadDocxBtn.classList.remove('copied'); downloadDocxBtn.textContent = 'Download .docx'; }, 1600);
+});
+
 clearBtn.addEventListener('click', () => {
-  input.value = ''; lastValue = ''; mermaidBlocks = [];
-  output.innerHTML =
-    '<p class="placeholder">Formatted content appears here.<br>' +
-    'Text copies with formatting via "Copy all".<br>' +
-    'Mermaid diagrams get their own "Copy image" button.</p>';
+  input.value = '';
+  lastValue = '';
+  mermaidBlocks = [];
+  parsedHtml = '';
+  output.innerHTML = PLACEHOLDER;
   status.textContent = '';
   input.focus();
 });

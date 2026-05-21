@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown to Word - Lightweight Tests</title>
+<style>
+  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #111; color: #eee; padding: 16px; }
+  h1 { font-size: 18px; margin-bottom: 12px; }
+  .pass { color: #5dd39e; }
+  .fail { color: #ff7d7d; }
+  li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<h1>Lightweight regression tests</h1>
+<ul id="results"></ul>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script>
+  const tests = [
+    {
+      name: 'Heading renders',
+      md: '# Title',
+      check: (html) => html.includes('<h1') && html.includes('Title')
+    },
+    {
+      name: 'Nested emphasis renders',
+      md: '**bold** and *italic*',
+      check: (html) => html.includes('<strong>bold</strong>') && html.includes('<em>italic</em>')
+    },
+    {
+      name: 'Mermaid blocks are wrapped',
+      md: '```mermaid\\ngraph TD; A-->B;\\n```',
+      check: (html) => html.includes('mermaid-wrap') && html.includes('data-mermaid-src')
+    },
+    {
+      name: 'Dangerous javascript link is sanitized',
+      md: '[x](javascript:alert(1))',
+      check: (html) => !/href\s*=\s*"javascript:/i.test(html)
+    },
+    {
+      name: 'Script tags are removed',
+      md: '<script>alert(1)</script>safe',
+      check: (html) => !html.includes('<script') && html.includes('safe')
+    }
+  ];
+
+  function escAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  const renderer = new marked.Renderer();
+  renderer.code = (codeOrToken, infostring) => {
+    const isToken = codeOrToken && typeof codeOrToken === 'object';
+    const code = isToken ? String(codeOrToken.text || '') : String(codeOrToken || '');
+    const langRaw = isToken ? codeOrToken.lang : infostring;
+    const lang = String(langRaw || '').trim().toLowerCase();
+    if (lang === 'mermaid') {
+      return '<div class="mermaid-wrap" data-mermaid-src="' + escAttr(code.trim()) + '"></div>';
+    }
+    const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<pre><code>' + escaped + '</code></pre>';
+  };
+
+  marked.setOptions({ gfm: true, renderer });
+
+  const ul = document.getElementById('results');
+  let fails = 0;
+
+  tests.forEach((t) => {
+    const raw = marked.parse(t.md);
+    const html = DOMPurify.sanitize(raw, {
+      USE_PROFILES: { html: true },
+      FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
+    });
+
+    const ok = !!t.check(html);
+    const li = document.createElement('li');
+    li.className = ok ? 'pass' : 'fail';
+    li.textContent = (ok ? 'PASS: ' : 'FAIL: ') + t.name;
+    ul.appendChild(li);
+    if (!ok) fails += 1;
+  });
+
+  const summary = document.createElement('li');
+  summary.style.marginTop = '12px';
+  summary.textContent = fails ? `FAILED: ${fails} test(s)` : 'ALL TESTS PASSED';
+  summary.className = fails ? 'fail' : 'pass';
+  ul.appendChild(summary);
+</script>
+</body>
+</html>

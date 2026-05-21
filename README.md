@@ -1,45 +1,60 @@
 # Markdown to Word
 
-A lightweight, single-file web app for converting Markdown into Word-friendly rich text.
+Single-file local web app that converts Markdown into Word-friendly rich text.
 
-Paste Markdown on the left, preview formatted output on the right, then copy everything with formatting and paste directly into Microsoft Word, Google Docs, or other rich-text editors.
+Paste Markdown on the left, preview on the right, then either copy rich text or download a `.docx` file.
+
+## What improved
+
+- Real Markdown parser (`marked`) instead of fragile regex parsing.
+- HTML sanitization (`DOMPurify`) for safer output.
+- Web Worker parsing so large docs do not block the UI.
+- Mermaid improvements:
+  - Retry broken diagrams
+  - Copy diagram as PNG
+  - Export diagram as SVG
+  - Copy diagrams in bulk
+- Direct `.docx` export using `docx`.
+- Local-first trust message in UI.
+- Lightweight regression tests (`tests.html`).
 
 ## Features
 
 - Live Markdown preview
 - Rich text copy (`Copy all`) for Word-ready pasting
-- Mermaid diagram rendering (`mermaid` code blocks)
-- Copy Mermaid diagrams as images
-- Clean split-pane UI (desktop + mobile responsive)
+- `.docx` download (`Download .docx`)
+- Mermaid rendering in fenced `mermaid` blocks
+- Mermaid PNG copy, SVG export, and retry
+- Responsive split-pane layout
 - Dark mode support via `prefers-color-scheme`
 
-## Supported Markdown
+## Do I need to install libraries?
 
-- Headings (`#` to `####`)
-- Paragraphs
-- Bold / italic / strikethrough
-- Ordered and unordered lists
-- Blockquotes
-- Inline code and fenced code blocks
-- Horizontal rules
-- Links
-- Tables
-- Mermaid diagrams
+No install required if you run this as an HTML file in a browser with internet access.
 
-## File Structure
+Libraries are loaded from CDNs:
 
-- `markdown-to-word.html` — full application (HTML, CSS, JS)
-- `README.md` — project documentation
+- `marked` for Markdown parsing
+- `DOMPurify` for sanitization
+- `mermaid` for diagrams
+- `docx` for `.docx` generation
+
+If you want full offline usage, you can download and bundle those scripts locally later.
+
+## Files
+
+- `markdown-to-word.html` - full app (HTML/CSS/JS)
+- `README.md` - documentation
+- `tests.html` - lightweight regression test page
 
 ## Usage
 
 1. Open `markdown-to-word.html` in your browser.
 2. Paste Markdown into the left panel.
-3. Confirm formatting in the right panel.
-4. Click `Copy all`.
-5. Paste into Word (or another rich-text editor).
+3. Confirm the formatted output.
+4. Click `Copy all` or `Download .docx`.
 
-For Mermaid blocks, use fenced code with `mermaid`:
+For Mermaid blocks:
 
 ```markdown
 ```mermaid
@@ -47,16 +62,16 @@ graph TD
   A[Start] --> B{Decision}
   B -->|Yes| C[Done]
   B -->|No| D[Try again]
-  D --> A
 ```
 ```
+
+## Test quickly
+
+1. Open `tests.html` in your browser.
+2. Confirm all tests pass.
 
 ## Notes
 
-- Mermaid is loaded from jsDelivr CDN (`mermaid@10`).
-- Internet access is required for Mermaid rendering unless you bundle Mermaid locally.
-- The app is static and requires no build step or backend.
-
-## License
-
-No license file is currently included. Add one if you plan to distribute this project.
+- This app is local-first and has no backend.
+- Mermaid and other libraries are CDN-based by default.
+- Add a license file if you plan to distribute this publicly.
